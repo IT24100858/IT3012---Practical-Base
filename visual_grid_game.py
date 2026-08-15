@@ -53,7 +53,11 @@ class VisualGridHuntGame:
             'food_here': tuple(self.agent_pos) in self.food_positions,
             'collision': self.collision,
             'score': self.score,
-            'remaining_food': len(self.food_positions)
+            'remaining_food': len(self.food_positions),
+            # --- Practical 03: Step 1.1 additions (expose world model for search agents) ---
+            'grid_size': (self.width, self.height),
+            'walls': list(self.walls),
+            'all_food': list(self.food_positions)
         }
 
     def execute_action(self, action: str):
