@@ -1,6 +1,8 @@
 import random
 import tkinter as tk
 
+from agent import SearchAgent
+
 
 class VisualGridHuntGame:
     def __init__(self, width=10, height=10, num_food=10, num_opponents=2, custom_walls=None):
@@ -57,7 +59,9 @@ class VisualGridHuntGame:
             # --- Practical 03: Step 1.1 additions (expose world model for search agents) ---
             'grid_size': (self.width, self.height),
             'walls': list(self.walls),
-            'all_food': list(self.food_positions)
+            'all_food': list(self.food_positions),
+            # --- Practical 04: agent position needed by SearchAgent.sense_and_act ---
+            'agent_pos': list(self.agent_pos)
         }
 
     def execute_action(self, action: str):
@@ -110,6 +114,10 @@ class GridGameGUI:
 
         self.env = VisualGridHuntGame(width=width, height=height, num_food=num_food, num_opponents=num_opponents,
                                       custom_walls=walls)
+
+        # Practical 04 - Step 1.3: inject SearchAgent (A*) instead of ModelBasedAgent
+        self.agent = SearchAgent()
+        self.agent.active_algo = 'AStar'
 
         max_canvas_dim = 600
         self.cell_size = max(20, min(max_canvas_dim // self.env.width, max_canvas_dim // self.env.height))
@@ -172,7 +180,8 @@ class GridGameGUI:
 
         def step():
             if not self.env.is_done():
-                action = random.choice(['Up', 'Down', 'Left', 'Right'])
+                percept = self.env.get_percept()
+                action = self.agent.sense_and_act(percept)
                 self.env.execute_action(action)
 
                 self.draw_grid()
