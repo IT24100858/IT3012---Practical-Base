@@ -1,4 +1,5 @@
 import random
+import math
 from collections import deque
 import heapq
 
@@ -47,7 +48,7 @@ class SearchAgent:
         self.moves = {'Up': (0, 1), 'Down': (0, -1), 'Left': (-1, 0), 'Right': (1, 0)}
         # Practical 03 additions
         self.plan = []
-        self.active_algo = 'BFS'   # 'BFS', 'DFS', or 'UCS'
+        self.active_algo = 'BFS'   # 'BFS', 'DFS', 'UCS', or 'AStar'
 
     # ------------------------------------------------------------------
     # Breadth-First Search (unchanged from Practical 03 starter code)
@@ -133,6 +134,60 @@ class SearchAgent:
         return None
 
     # ------------------------------------------------------------------
+    # Practical 04 - Step 1.1: Heuristic Functions
+    # ------------------------------------------------------------------
+    def manhattan_distance(self, pos, goal):
+        """h(n) = |x1 - x2| + |y1 - y2|"""
+        return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
+
+    def euclidean_distance(self, pos, goal):
+        """h(n) = sqrt((x1 - x2)^2 + (y1 - y2)^2)"""
+        return math.sqrt((pos[0] - goal[0]) ** 2 + (pos[1] - goal[1]) ** 2)
+
+    # ------------------------------------------------------------------
+    # Practical 04 - Step 1.2: A* Search
+    # f(n) = g(n) + h(n)
+    # ------------------------------------------------------------------
+    def astar_search(self, start_pos, goal_pos, walls, grid_size, heuristic_type='manhattan'):
+        width, height = grid_size
+        walls = set(tuple(w) for w in walls)
+        start_pos = tuple(start_pos)
+        goal_pos = tuple(goal_pos)
+        if start_pos == goal_pos:
+            return []
+
+        heuristic_func = self.manhattan_distance if heuristic_type == 'manhattan' else self.euclidean_distance
+
+        reached_states = set()
+        counter = 0  # tie-breaker so heapq never compares list/tuple paths directly
+
+        g_start = 0
+        h_start = heuristic_func(start_pos, goal_pos)
+        f_start = g_start + h_start
+        frontier = [(f_start, g_start, counter, start_pos, [])]
+
+        while frontier:
+            f_cost, g_cost, _, pos, path = heapq.heappop(frontier)
+
+            if pos == goal_pos:
+                return path
+
+            if pos in reached_states:
+                continue
+            reached_states.add(pos)
+
+            for action, (dx, dy) in self.moves.items():
+                new_pos = (pos[0] + dx, pos[1] + dy)
+                if 0 <= new_pos[0] < width and 0 <= new_pos[1] < height \
+                        and new_pos not in walls and new_pos not in reached_states:
+                    g_new = g_cost + 1
+                    h_new = heuristic_func(new_pos, goal_pos)
+                    f_new = g_new + h_new
+                    counter += 1
+                    heapq.heappush(frontier, (f_new, g_new, counter, new_pos, path + [action]))
+        return None
+
+    # ------------------------------------------------------------------
     # Offline planning: build a full plan once, then execute it action by action
     # ------------------------------------------------------------------
     @staticmethod
@@ -158,9 +213,19 @@ class SearchAgent:
                 path = self.dfs_search(agent_pos, goal_pos, walls, grid_size)
             elif self.active_algo == 'UCS':
                 path = self.ucs_search(agent_pos, goal_pos, walls, grid_size)
+            elif self.active_algo == 'AStar':
+                path = self.astar_search(agent_pos, goal_pos, walls, grid_size)
             else:
                 path = self.bfs_search(agent_pos, goal_pos, walls, grid_size)
 
             self.plan = path if path else [random.choice(list(self.moves.keys()))]
 
         return self.plan.pop(0)
+
+
+if __name__ == '__main__':
+    # Practical 04 - Step 1.1 Testing Checkpoint
+    _agent = SearchAgent()
+    _start, _goal = (0, 0), (3, 4)
+    print("Manhattan distance:", _agent.manhattan_distance(_start, _goal))  # expected 7
+    print("Euclidean distance:", _agent.euclidean_distance(_start, _goal))  # expected 5.0
