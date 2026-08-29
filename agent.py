@@ -3,6 +3,8 @@ import math
 from collections import deque
 import heapq
 
+from logic_engine import KnowledgeBase
+
 
 class GreedyGridAgent:
     def __init__(self):
@@ -49,6 +51,11 @@ class SearchAgent:
         # Practical 03 additions
         self.plan = []
         self.active_algo = 'BFS'   # 'BFS', 'DFS', 'UCS', or 'AStar'
+
+        # Practical 04 - Step 3.1: Knowledge Base + safety rules
+        self.kb = KnowledgeBase()
+        self.kb.tell_rule(['TargetVisible', 'HasDust'], 'SafeToEngage')
+        self.kb.tell_rule(['SafeToEngage', 'BloodseekerMissing'], 'Retreat')
 
     # ------------------------------------------------------------------
     # Breadth-First Search (unchanged from Practical 03 starter code)
@@ -148,7 +155,27 @@ class SearchAgent:
     # Practical 04 - Step 1.2: A* Search
     # f(n) = g(n) + h(n)
     # ------------------------------------------------------------------
-    def astar_search(self, start_pos, goal_pos, walls, grid_size, heuristic_type='manhattan'):
+    def _get_tile_facts(self, pos, threats):
+        """
+        Practical 04 - Step 3.2: Translate the percepts for a specific tile
+        into facts for the Knowledge Base.
+
+        NOTE: The current grid game does not emit real 'TargetVisible' /
+        'HasDust' / 'BloodseekerMissing' percepts, so this is a literal,
+        minimal wiring of the rule inputs described in the practical:
+        the agent always 'HasDust' and has no backup ('BloodseekerMissing'
+        is always true), and 'TargetVisible' becomes true only when the
+        tile coincides with a known threat position. Net effect: any tile
+        occupied by a threat chains all the way to 'Retreat' and gets
+        marked Infeasible. Adjust this mapping if your game exposes
+        richer percepts.
+        """
+        facts = ['HasDust', 'BloodseekerMissing']
+        if threats and pos in threats:
+            facts.append('TargetVisible')
+        return facts
+
+    def astar_search(self, start_pos, goal_pos, walls, grid_size, heuristic_type='manhattan', threats=None):
         width, height = grid_size
         walls = set(tuple(w) for w in walls)
         start_pos = tuple(start_pos)
@@ -180,6 +207,15 @@ class SearchAgent:
                 new_pos = (pos[0] + dx, pos[1] + dy)
                 if 0 <= new_pos[0] < width and 0 <= new_pos[1] < height \
                         and new_pos not in walls and new_pos not in reached_states:
+
+                    # --- Practical 04 - Step 3.2: Knowledge Base feasibility check ---
+                    self.kb.clear_facts()
+                    for fact in self._get_tile_facts(new_pos, threats):
+                        self.kb.tell_fact(fact)
+                    self.kb.forward_chain()
+                    if 'Retreat' in self.kb.facts:
+                        continue  # Reachable (no wall) but logically Infeasible - skip it
+
                     g_new = g_cost + 1
                     h_new = heuristic_func(new_pos, goal_pos)
                     f_new = g_new + h_new
@@ -214,7 +250,8 @@ class SearchAgent:
             elif self.active_algo == 'UCS':
                 path = self.ucs_search(agent_pos, goal_pos, walls, grid_size)
             elif self.active_algo == 'AStar':
-                path = self.astar_search(agent_pos, goal_pos, walls, grid_size)
+                threats = percept.get('opponents')
+                path = self.astar_search(agent_pos, goal_pos, walls, grid_size, threats=threats)
             else:
                 path = self.bfs_search(agent_pos, goal_pos, walls, grid_size)
 
